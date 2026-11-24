@@ -1722,14 +1722,31 @@ const NM = c => (FIFA_NAME[c] || nm(c).toUpperCase());
 const flag = (c, cls = 'wflag') => flagTag(c, cls);
 const R = c => RATING[c] || 50;
 
-// make sure a nation's art is ready before a match / preview (borrowed head, lazy badge)
+// every nation has its own head; the 162 extra ones live in a few atlas sheets
+const HSHEET = [];
+function headSheet(s) {
+  if (!HSHEET[s]) { const i = new Image(), o = HSHEET[s] = { img: i, ok: false, wait: [] }; i.onload = () => { o.ok = true; o.wait.splice(0).forEach(f => f()); }; i.src = `${A}headsheet/heads${s}.webp`; }
+  return HSHEET[s];
+}
+function cutHead(code) {
+  const [s, x, y, w, h] = HEAD_ATLAS.r[code], c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(HSHEET[s].img, x, y, w, h, 0, 0, w, h);
+  IMG['head_' + code] = c; prep.own[code] = 1; if (VIS[code]) delete VIS[code];
+}
+for (let s = 0; s < HEAD_ATLAS.n; s++) headSheet(s);
+// make sure a nation's art is ready before a match / preview (own head from the atlas, lazy badge)
 function prep(code) {
   const t = WMAP[code]; if (!t || !t.pool) return;
+  if (!prep.own[code] && HEAD_ATLAS.r[code]) {
+    const sh = headSheet(HEAD_ATLAS.r[code][0]);
+    if (sh.ok) cutHead(code);
+    else { if (!IMG['head_' + code] && IMG['head_' + t.pool]) IMG['head_' + code] = IMG['head_' + t.pool]; if (!sh.wait.includes(prep.q[code] ||= () => cutHead(code))) sh.wait.push(prep.q[code]); }
+  }
   if (!IMG['head_' + code] && IMG['head_' + t.pool]) IMG['head_' + code] = IMG['head_' + t.pool];
   if (!IMG['badge_' + code] && !prep.loading[code]) { prep.loading[code] = 1; const i = new Image(); i.onload = () => { IMG['badge_' + code] = i; if (VIS[code]) delete VIS[code]; }; i.src = `${A}badges/${code}.webp`; }
   if (VIS[code] && !VIS[code].badge && IMG['badge_' + code]) delete VIS[code];
 }
-prep.loading = {};
+prep.loading = {}; prep.own = {}; prep.q = {};
 window.FW_prep = codes => codes.forEach(prep);
 function preloadAll() { WT.forEach(t => prep(t.code)); }
 
