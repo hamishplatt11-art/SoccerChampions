@@ -247,6 +247,24 @@ html,body{margin:0;height:100%;background:#050913;overflow:hidden;font-family:"L
 .fwpop.q .fwpbox{border-color:#ffc928;box-shadow:0 0 70px #ffc928aa}.fwpop.out .fwpbox{border-color:#ff6a5a;box-shadow:0 0 60px #ff6a5a88}
 .fwpflag{width:150px;height:100px;border-radius:8px;object-fit:cover;box-shadow:0 4px 0 #0008}.fwpt{font-weight:800;font-size:64px;color:#fff;letter-spacing:3px;line-height:1}.fwpop.q .fwpt{color:#ffc928}.fwpop.out .fwpt{color:#ff6a5a}.fwps{font-size:20px;color:#cfe0ff}
 .fs{display:inline-block;vertical-align:middle;background:#223 url(assets/ui/flags.webp) no-repeat;background-size:1500% 1400%;flex:none}.pflag .fs{display:block}
+
+/* 2-player World Cup */
+.ptag{display:inline-block;font-weight:400;font-size:15px;line-height:1;padding:3px 6px 2px;border-radius:7px;border:2px solid var(--ink);color:#08121f;margin-right:4px}
+.ptag.p1{background:#3ee07a}.ptag.p2{background:#4fb3ff}
+.cuptop.duo{align-self:stretch;justify-content:space-between;gap:10px;padding:6px 10px}
+.duocard{display:flex;align-items:center;gap:10px;padding:4px 14px 4px 8px;border-radius:12px;border:3px solid transparent;min-width:300px;opacity:.75}
+.duocard.on{opacity:1;animation:duop 0.9s infinite alternate}@keyframes duop{to{transform:scale(1.03)}}.duocard.p1.on{border-color:#3ee07a;background:#3ee07a22}.duocard.p2.on{border-color:#4fb3ff;background:#4fb3ff22}
+.duocard.dead{filter:grayscale(1);opacity:.45}.duocard .dn{font-size:24px;line-height:1}.duocard .ds{font-size:14px;color:#ffd760}
+.duocard.p2{flex-direction:row-reverse;text-align:right;padding:6px 8px 6px 14px}
+.duomid{text-align:center}
+.duoturn{font-size:17px;margin-top:3px;line-height:1.1}
+.duoturn b{font-weight:400}.duoturn.p1 b,.duoturn b.p1{color:#3ee07a}.duoturn.p2 b,.duoturn b.p2{color:#4fb3ff}.duoturn small{font-size:13px;opacity:.8}
+.duonote{position:absolute;bottom:84px;left:50%;transform:translateX(-50%);font-size:15px;white-space:nowrap;background:#0a1640f0;border:3px solid var(--gold);border-radius:12px;padding:6px 14px;z-index:5;animation:fadeout 1s 7s forwards}
+.duonote img{vertical-align:middle}@keyframes fadeout{to{opacity:0;visibility:hidden}}
+.gtable tr.me td:nth-child(2){color:#ffd760}
+.kme.duo{flex-direction:column;align-items:flex-start;gap:4px}.kmep{display:flex;align-items:center;gap:6px}.kmep.dead{filter:grayscale(1);opacity:.5}
+.kr.mine.p1 .kn{text-decoration-color:#21b85a}.kr.mine.p2 .kn{text-decoration-color:#1e8fe0}
+.fw.duo.p1 .fwt2,.fw.duo.p1 h2{color:#3ee07a}.fw.duo.p2 .fwt2,.fw.duo.p2 h2{color:#4fb3ff}
 </style>
 </head>
 <body>

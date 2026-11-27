@@ -422,7 +422,7 @@ function startMatch(opts) {
   if (window.FW_prep) FW_prep([opts.home, opts.away]);
   match.players = [new Player(0, opts.home, true, 'p1'), new Player(1, opts.away, !!opts.twoP, opts.twoP ? 'p2' : 'ai')];
   match.agg = opts.agg || null;   // two-legged ties: goals already banked [p1, p2]
-  match.solo = !opts.twoP;
+  match.solo = !opts.twoP; match.tag = opts.tag || null;
   match.score = [0, 0]; match.banner = null; match.bannerT = 0; match.special = null; parts = []; shake = 0; flash = 0; slowmo = 0; match.time = opts.time || MATCH_TIME; match.total = match.time; match.halfDone = false; match.special = null; match.golden = false; match.knockout = !!opts.knockout; match.difficulty = opts.difficulty ?? 1;
   match.onEnd = opts.onEnd; match.label = opts.label || ''; match.demo = !!opts.demo;
   match.powerups = opts.powerups ?? (settings.powerups !== false); puReset(); wxP = []; match.replay = null; match.weather = opts.weather || pickWeather(opts.demo);
@@ -1004,8 +1004,8 @@ function drawPlayer(p, opt) {
   if (p.stun > 0) { for (let i = 0; i < 3; i++) { const a = T * 6 + i * 2.1; drawStar(hx + Math.cos(a) * 46, hy - 66 + Math.sin(a) * 10, 9); } }
   if (!menu && (match.state === 'kickoff' || match.state === 'play' && match.time > match.total - 3 * CLOCK_RATE)) {
     ctx.font = '700 18px "Lilita One", sans-serif'; ctx.textAlign = 'center';
-    const lbl = p.human ? (p.ctl === 'p1' ? 'P1' : 'P2') : 'CPU';
-    ctx.fillStyle = p.ctl === 'p1' ? '#3ee07a' : p.human ? '#4fb3ff' : '#ff5a4f';
+    const lbl = p.human ? (p.ctl === 'p1' ? (match.tag || 'P1') : 'P2') : 'CPU';
+    ctx.fillStyle = lbl === 'P1' ? '#3ee07a' : p.human ? '#4fb3ff' : '#ff5a4f';
     ctx.beginPath(); ctx.moveTo(hx - 8, hy - 86); ctx.lineTo(hx + 8, hy - 86); ctx.lineTo(hx, hy - 76); ctx.fill();
     strokeText(lbl, hx, hy - 92, '#fff');
   }
@@ -1268,11 +1268,14 @@ function showTitle() {
   sub.appendChild(btn('WORLD CUP 48', 'sm', () => teamSelect('wc')));
   sub.appendChild(btn('QUICK MATCH', 'sm', () => teamSelect('quick')));
   sub.appendChild(btn('2 PLAYERS', 'sm', () => teamSelect('2p')));
+  sub.appendChild(btn('2P WORLD CUP', 'sm', () => FW_new({ step: 0 })));
   col.appendChild(sub);
   const wc = store.get('hl_wc', null);
   const cont = el('div', 'subrow');
   if (window.FW_hasSave && FW_hasSave()) cont.appendChild(btn('CONTINUE ROAD TO 2026', 'green sm', () => FW_continue()));
   if (wc && !wc.done && !wc.full) cont.appendChild(btn('CONTINUE CUP', 'green sm', () => { cup = wc; cupHub(); }));
+  const wc2 = store.get('hl_wc2', null);
+  if (wc2 && !wc2.done) cont.appendChild(btn('CONTINUE 2P CUP', 'green sm', () => { cup = wc2; if (window.FW_prep) FW_prep(cup.users); cupHub(); }));
   if (cont.children.length) col.insertBefore(cont, col.firstChild);
   ui.appendChild(col);
   const diff = el('div', 'diff');
@@ -1357,7 +1360,11 @@ function newCup(code, groups = null, extra = {}) {
   }
   saveCup(); cupHub();
 }
-function saveCup() { if (cup && cup.full) { if (window.FW_saveCup) FW_saveCup(cup); } else store.set('hl_wc', cup); }
+function saveCup() { if (cup && cup.full) { if (window.FW_saveCup) FW_saveCup(cup); } else store.set(cup && cup.duo ? 'hl_wc2' : 'hl_wc', cup); }
+// humans still in it (1-player cup: just cup.team; 2-player cup: whoever is alive)
+const humans = () => !cup ? [] : cup.duo ? cup.users.filter((u, i) => cup.alive[i]) : [cup.team];
+const isMe = c => !!cup && (cup.duo ? cup.users.includes(c) : c === cup.team);
+const pTag = c => cup && cup.duo ? `<b class="ptag p${cup.users.indexOf(c) + 1}">P${cup.users.indexOf(c) + 1}</b>` : '';
 function simScore(h, a) {
   const rh = RATING[h], ra = RATING[a];
   const lam = (r1, r2) => Math.max(0.2, 1.35 + (r1 - r2) * 0.06);
@@ -1385,12 +1392,14 @@ const KO_NAMES = ['ROUND OF 32', 'ROUND OF 16', 'QUARTER-FINAL', 'SEMI-FINAL', '
 function cupHub() {
   screen = 'cup'; clearUI(); ui.className = 'menu cup' + (cup.stage !== 'group' && cup.ko ? ' ko' : ''); music('menu'); crowd(false);
   if (cup.stage !== 'group' && cup.ko) { ui.appendChild(bracketPoster()); cupRow(); return; }
+  if (cup.duo) duoTop(); else {
   const top = el('div', 'cuptop', `${badgeImg(cup.team, 64)}<div><div class="ct1">${cup.full ? 'WORLD CUP 2026 FINALS' : 'WORLD CUP 48'}</div><div class="ct2">${byCode(cup.team).name.toUpperCase()} · ${cup.stage === 'group' ? 'GROUP ' + myGroup() + ' · MATCHDAY ' + (cup.md + 1) : cup.stage === 'ko' ? KO_NAMES[cup.koRound] : cup.champion === cup.team ? 'CHAMPIONS!' : 'ELIMINATED'}</div></div>`);
-  ui.appendChild(top);
+  ui.appendChild(top); }
   const body = el('div', 'cupbody');
   if (cup.stage === 'group') {
     const g = myGroup(); body.appendChild(groupTable(g, true));
     const others = el('div', 'others'); for (const gg of GROUPS) if (gg !== g) others.appendChild(groupTable(gg, false)); body.appendChild(others);
+    if (cup.duo) body.classList.add('duo');
   } else body.appendChild(bracketView());
   ui.appendChild(body);
   cupRow();
@@ -1401,10 +1410,12 @@ function cupRow() {
   const fx = myFixture();
   if (fx && !cup.done) {
     const opp = fx[0] === cup.team ? fx[1] : fx[0];
-    row.appendChild(el('div', 'next', `NEXT: ${badgeImg(cup.team, 40)} vs ${badgeImg(opp, 40)} <b>${byCode(opp).name.toUpperCase()}</b>`));
-    row.appendChild(btn('PLAY MATCH', 'green', () => playCupMatch(fx)));
+    if (cup.duo) row.appendChild(el('div', 'next', `${fx.every(isMe) ? 'P1 v P2:' : pTag(cup.team) + ' NEXT:'} ${badgeImg(cup.team, 40)} vs ${badgeImg(opp, 40)} <b>${byCode(opp).name.toUpperCase()}</b>`));
+    else row.appendChild(el('div', 'next', `NEXT: ${badgeImg(cup.team, 40)} vs ${badgeImg(opp, 40)} <b>${byCode(opp).name.toUpperCase()}</b>`));
+    row.appendChild(btn(cup.duo ? (fx.every(isMe) ? 'PLAY P1 v P2' : `PLAYER ${cup.turn + 1} — PLAY`) : 'PLAY MATCH', 'green', () => playCupMatch(fx)));
   } else if (cup.done) {
     if (cup.full) row.appendChild(btn('NEW CAMPAIGN', 'gold', () => FW_new()));
+    else if (cup.duo) row.appendChild(btn('NEW 2P WORLD CUP', 'gold', () => { store.set('hl_wc2', null); FW_new({ step: 0 }); }));
     else row.appendChild(btn('NEW CUP', 'gold', () => { store.set('hl_wc', null); teamSelect('wc'); }));
   }
   ui.appendChild(row);
@@ -1412,7 +1423,7 @@ function cupRow() {
 function groupTable(g, big) {
   const t = table(g), d = el('div', 'gtable' + (big ? ' big' : ''));
   let h = `<div class="gt-h">GROUP ${g}</div><table><tr><th></th><th>${big ? 'TEAM' : ''}</th><th>P</th>${big ? '<th>W</th><th>D</th><th>L</th><th>GD</th>' : ''}<th>PTS</th></tr>`;
-  t.forEach((r, i) => { h += `<tr class="${r.code === cup.team ? 'me' : ''} ${i < 2 ? 'q' : i === 2 ? 'q3' : ''}"><td>${badgeImg(r.code, big ? 34 : 22)}</td><td>${big ? byCode(r.code).name : r.code}</td><td>${r.p}</td>${big ? `<td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td>` : ''}<td><b>${r.pts}</b></td></tr>`; });
+  t.forEach((r, i) => { h += `<tr class="${isMe(r.code) ? 'me' : ''} ${i < 2 ? 'q' : i === 2 ? 'q3' : ''}"><td>${badgeImg(r.code, big ? 34 : 22)}</td><td>${big ? byCode(r.code).name : r.code}</td><td>${r.p}</td>${big ? `<td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td>` : ''}<td><b>${r.pts}</b></td></tr>`; });
   d.innerHTML = h + '</table>'; return d;
 }
 /* poster-style knockout bracket: two mirrored halves meeting at the final in the middle */
@@ -1425,7 +1436,8 @@ function bracketPoster() {
   const d = el('div', 'kposter');
   d.innerHTML = `<div class="kblob l"></div><div class="kblob r"></div>
     <div class="ktitle">WORLD CUP 2026</div><div class="kpill">KNOCKOUT BRACKET</div>
-    <div class="kme">${badgeImg(cup.team, 30)}<span>${byCode(cup.team).name.toUpperCase()}<i>${cup.champion === cup.team ? 'CHAMPIONS!' : cup.stage === 'out' ? 'ELIMINATED' : RND_HEAD[cup.koRound]}</i></span></div>`;
+    ${cup.duo ? `<div class="kme duo">${cup.users.map((u, i) => `<div class="kmep p${i + 1}${cup.alive[i] ? '' : ' dead'}">${pTag(u)}${badgeImg(u, 26)}<span>${tName(u)}<i>${cup.champion === u ? 'CHAMPIONS!' : !cup.alive[i] ? 'ELIMINATED' : cup.champion ? 'RUNNERS-UP' : RND_HEAD[cup.koRound]}</i></span></div>`).join('')}</div>`
+    : `<div class="kme">${badgeImg(cup.team, 30)}<span>${byCode(cup.team).name.toUpperCase()}<i>${cup.champion === cup.team ? 'CHAMPIONS!' : cup.stage === 'out' ? 'ELIMINATED' : RND_HEAD[cup.koRound]}</i></span></div>`}`;
   const step = (PW - 16 - BW) / 8;
   const colX = (r, side) => side === 0 ? 8 + r * step : PW - 8 - BW - r * step;
   const svg = []; const boxes = [];
@@ -1434,16 +1446,16 @@ function bracketPoster() {
   const mnum = (r, side, i) => [73, 89, 97, 101][r] + side * (8 >> r) + i;
   const res = (r, m) => m && cup.results['ko' + r + ':' + m.join('-')];
   const box = (r, m, x, y, w, side, label, isFinal) => {
-    const rr = res(r, m), me = m && m.includes(cup.team), up = me && !rr && !cup.done && r === cup.koRound;
+    const rr = res(r, m), me = m && m.some(isMe), up = me && !rr && !cup.done && r === cup.koRound;
     const rows = [0, 1].map(k => {
       const c = m && m[k];
       if (!c) return `<div class="kr tbd"><span class="kn">TBD</span></div>`;
       const st = rr ? (rr.w === k ? ' win' : ' lose') : '';
       const nm = tName(c), fs = nm.length > 10 ? 10.5 : nm.length > 8 ? 12 : 13.5;
       const flag = flagTag(c, 'kf'), sc = rr ? `<b class="ks">${rr.s[k]}</b>` : '';
-      return `<div class="kr${st}${c === cup.team ? ' mine' : ''}">${side === 1 ? sc : flag}<span class="kn" style="font-size:${fs}px">${nm}</span>${side === 1 ? flag : sc}</div>`;
+      return `<div class="kr${st}${isMe(c) ? ' mine' + (cup.duo ? ' p' + (cup.users.indexOf(c) + 1) : '') : ''}">${side === 1 ? sc : flag}<span class="kn" style="font-size:${fs}px">${nm}</span>${side === 1 ? flag : sc}</div>`;
     }).join('');
-    const lab = `${label} • ${rr ? 'FULL TIME' : up ? 'YOUR MATCH' : RND_DATE[r]}`;
+    const lab = `${label} • ${rr ? 'FULL TIME' : up ? (cup.duo ? (m.every(isMe) ? 'P1 v P2!' : 'P' + (cup.users.indexOf(m.find(isMe)) + 1) + ' MATCH') : 'YOUR MATCH') : RND_DATE[r]}`;
     boxes.push(`<div class="kb${isFinal ? ' fin' : ''}${me ? ' me' : ''}${up ? ' up' : ''} s${side}" style="left:${x}px;top:${y - (isFinal ? 26 : rowsH / 2)}px;width:${w}px">${rows}<div class="kl">${lab}</div></div>`);
   };
   // halves
@@ -1477,7 +1489,7 @@ function bracketView() {
     const col = el('div', 'bcol'); col.appendChild(el('div', 'bh', KO_NAMES[ri]));
     round.forEach(m => {
       const r = cup.results['ko' + ri + ':' + m.join('-')];
-      const cell = el('div', 'bm' + (m.includes(cup.team) ? ' me' : ''));
+      const cell = el('div', 'bm' + (m.some(isMe) ? ' me' : ''));
       cell.innerHTML = m.map((c, i) => `<div class="bt ${r && ((i === 0 && r.w === 0) || (i === 1 && r.w === 1)) ? 'w' : ''}">${badgeImg(c, 20)}<span>${c}</span><b>${r ? r.s[i] : ''}</b></div>`).join('');
       col.appendChild(cell);
     });
@@ -1487,15 +1499,17 @@ function bracketView() {
   return d;
 }
 function playCupMatch(fx) {
-  const home = cup.team, away = fx[0] === cup.team ? fx[1] : fx[0];
-  const ko = cup.stage === 'ko';
+  const home = cup.duo && fx.every(isMe) ? cup.users[0] : cup.team, away = fx[0] === home ? fx[1] : fx[0];
+  const ko = cup.stage === 'ko', vs = cup.duo && fx.every(isMe);
+  if (cup.duo) { cup.team = home; }
   startMatch({
-    home, away, difficulty: cup.diff, knockout: ko, label: ko ? KO_NAMES[cup.koRound] : `GROUP ${myGroup()} · MD${cup.md + 1}`,
+    home, away, difficulty: cup.diff, knockout: ko, twoP: vs, tag: cup.duo && !vs ? 'P' + (cup.turn + 1) : null, label: (cup.duo ? (vs ? 'P1 v P2 · ' : `P${cup.turn + 1} · `) : '') + (ko ? KO_NAMES[cup.koRound] : `GROUP ${myGroup()} · MD${cup.md + 1}`),
     onEnd: (s0, s1) => {
       // map back to fixture order
       const r = fx[0] === home ? [s0, s1] : [s1, s0];
-      if (!ko) { cup.results[`${fx[0]}-${fx[1]}`] = r; advanceGroup(); }
-      else { const w = r[0] > r[1] ? 0 : 1; cup.results['ko' + cup.koRound + ':' + fx.join('-')] = { s: r, w }; advanceKO(); }
+      if (!ko) { cup.results[`${fx[0]}-${fx[1]}`] = r; if (!cup.duo || !duoPending().length) advanceGroup(); }
+      else { const w = r[0] > r[1] ? 0 : 1; cup.results['ko' + cup.koRound + ':' + fx.join('-')] = { s: r, w }; if (!cup.duo || !duoPending().length) advanceKO(); }
+      if (cup.duo) duoTurn();
       saveCup(); resultScreen(home, away, s0, s1, () => cupHub(), null);
       document.querySelector('.result .row .mbtn span').textContent = 'CONTINUE';
     }
@@ -1514,7 +1528,8 @@ function buildKO() {
   thirds.sort(rk);
   const q = [...firsts.sort(rk), ...seconds.sort(rk), ...thirds.slice(0, 8)];
   const qualified = q.map(x => x.code);
-  const out = !qualified.includes(cup.team);
+  if (cup.duo) cup.alive = cup.users.map(u => qualified.includes(u));
+  const out = !humans().length;
   // seed 1..32, pair 1v32 etc avoiding same group in R32 where possible
   const seeds = q.slice(); const pairs = []; const used = new Set();
   for (let i = 0; i < 16; i++) {
@@ -1529,19 +1544,21 @@ function buildKO() {
   // bracket order so seeds 1&2 meet only in final
   const order = [0, 15, 8, 7, 4, 11, 12, 3, 2, 13, 10, 5, 6, 9, 14, 1];
   cup.ko = [order.map(i => pairs[i])]; cup.koRound = 0; cup.stage = 'ko';
+  if (cup.duo && cup.alive[0] && cup.alive[1]) duoSplit(cup.ko[0]);
   if (out) { cup.stage = 'out'; cup.done = true; simToEnd(); return; }
   simKORound();
 }
 function simKORound() {
   const r = cup.koRound, round = cup.ko[r];
-  for (const m of round) { const k = 'ko' + r + ':' + m.join('-'); if (cup.results[k] || m.includes(cup.team)) continue; let s = simScore(m[0], m[1]); if (s[0] === s[1]) s[Math.random() < RATING[m[0]] / (RATING[m[0]] + RATING[m[1]]) ? 0 : 1]++; cup.results[k] = { s, w: s[0] > s[1] ? 0 : 1 }; }
+  for (const m of round) { const k = 'ko' + r + ':' + m.join('-'); if (cup.results[k] || m.some(c => humans().includes(c))) continue; let s = simScore(m[0], m[1]); if (s[0] === s[1]) s[Math.random() < RATING[m[0]] / (RATING[m[0]] + RATING[m[1]]) ? 0 : 1]++; cup.results[k] = { s, w: s[0] > s[1] ? 0 : 1 }; }
 }
 function advanceKO() {
   const r = cup.koRound, round = cup.ko[r];
   simKORound();
   const winners = round.map(m => m[cup.results['ko' + r + ':' + m.join('-')].w]);
-  if (!winners.includes(cup.team)) { cup.done = true; cup.stage = 'out'; }
-  if (winners.length === 1) { cup.champion = winners[0]; cup.done = true; cup.stage = 'done'; if (cup.champion === cup.team) setTimeout(trophyScreen, 50); return; }
+  if (cup.duo) cup.alive = cup.alive.map((a, i) => a && winners.includes(cup.users[i]));
+  if (!winners.some(c => cup.duo ? cup.users.includes(c) : c === cup.team)) { cup.done = true; cup.stage = 'out'; }
+  if (winners.length === 1) { cup.champion = winners[0]; cup.done = true; cup.stage = 'done'; if (cup.duo && cup.users.includes(cup.champion)) cup.team = cup.champion; if (cup.champion === cup.team) setTimeout(trophyScreen, 50); return; }
   const next = []; for (let i = 0; i < winners.length; i += 2) next.push([winners[i], winners[i + 1]]);
   cup.ko.push(next); cup.koRound++;
   if (cup.done) { while (cup.ko[cup.koRound].length >= 1) { simKORound(); const rr = cup.koRound, rd = cup.ko[rr]; const ws = rd.map(m => m[cup.results['ko' + rr + ':' + m.join('-')].w]); if (ws.length === 1) { cup.champion = ws[0]; break; } const nx = []; for (let i = 0; i < ws.length; i += 2) nx.push([ws[i], ws[i + 1]]); cup.ko.push(nx); cup.koRound++; } }
@@ -1555,10 +1572,53 @@ function simToEnd() {
     const nx = []; for (let i = 0; i < ws.length; i += 2) nx.push([ws[i], ws[i + 1]]); cup.ko.push(nx); cup.koRound++;
   }
 }
+/* ---------------- 2-PLAYER WORLD CUP ----------------
+   Two humans, two nations, one tournament. P1 plays, then P2, each matchday / round.
+   Their nations take the place of the weakest qualified teams, sit in different groups,
+   and are kept on opposite halves of the bracket so they can only meet in the final. */
+window.WC2_new = (p1, p2) => {
+  const groups = {}; GROUPS.forEach(g => groups[g] = TEAMS.filter(t => t.group === g).map(t => t.code));
+  const gOf = c => GROUPS.find(g => groups[g].includes(c));
+  const replaced = [];
+  const place = (c, avoid) => {
+    if (gOf(c)) return;
+    const w = Object.values(groups).flat().filter(x => x !== p1 && x !== p2 && gOf(x) !== avoid).sort((a, b) => RATING[a] - RATING[b])[0];
+    const g = gOf(w); groups[g][groups[g].indexOf(w)] = c; replaced.push([c, w]);
+  };
+  place(p1, null); place(p2, gOf(p1));
+  if (gOf(p1) === gOf(p2)) {   // both already qualified in the same group: swap P2 with the closest-rated team elsewhere
+    const g1 = gOf(p1), x = Object.values(groups).flat().filter(c => gOf(c) !== g1).sort((a, b) => Math.abs(RATING[a] - RATING[p2]) - Math.abs(RATING[b] - RATING[p2]))[0];
+    const gx = gOf(x), i2 = groups[g1].indexOf(p2), ix = groups[gx].indexOf(x); groups[g1][i2] = x; groups[gx][ix] = p2;
+  }
+  if (window.FW_prep) FW_prep([p1, p2]);
+  store.set('hl_wc2', null);
+  newCup(p1, groups, { duo: true, users: [p1, p2], alive: [true, true], turn: 0, replaced, intro: true });
+};
+function fixtureOf(code) { const t = cup.team; cup.team = code; const f = myFixture(); cup.team = t; return f; }
+function fxPlayed(fx) { return !fx || (cup.stage === 'group' ? !!cup.results[`${fx[0]}-${fx[1]}`] : cup.stage === 'ko' ? !!cup.results['ko' + cup.koRound + ':' + fx.join('-')] : true); }
+function duoPending() { return cup.done ? [] : [0, 1].filter(i => cup.alive[i] && !fxPlayed(fixtureOf(cup.users[i]))); }
+function duoTurn() { const p = duoPending(); if (p.length) { cup.turn = p[0]; cup.team = cup.users[cup.turn]; } saveCup(); }
+// keep the two humans apart: never paired in the R32, and on opposite halves (matches 0-7 vs 8-15)
+function duoSplit(r32) {
+  const [a, b] = cup.users, at = c => r32.findIndex(m => m.includes(c));
+  let ia = at(a), ib = at(b);
+  if (ia === ib) { const j = ia ^ 1, k = r32[j][0] === a || r32[j][0] === b ? 1 : 0, o = r32[j][k]; r32[ia][r32[ia].indexOf(b)] = o; r32[j][k] = b; ib = j; }
+  if ((ia >> 3) === (ib >> 3)) { const j = (ib + 8) % 16; [r32[ib], r32[j]] = [r32[j], r32[ib]]; }
+}
+function duoTop() {
+  const stageTxt = c => { const i = cup.users.indexOf(c); if (!cup.alive[i]) return 'ELIMINATED'; const t = cup.team; cup.team = c; const g = myGroup(); cup.team = t; return cup.stage === 'group' ? `GROUP ${g}` : cup.stage === 'ko' ? KO_NAMES[cup.koRound] : ''; };
+  const card = (c, i) => `<div class="duocard p${i + 1}${cup.turn === i && !cup.done ? ' on' : ''}${cup.alive[i] ? '' : ' dead'}">${pTag(c)}${badgeImg(c, 52)}<div><div class="dn">${tName(c)}</div><div class="ds">${stageTxt(c)}</div></div></div>`;
+  const fx = !cup.done && myFixture(), vs = fx && fx.every(isMe);
+  const turn = cup.done ? `<div class="duoturn">${cup.champion && cup.users.includes(cup.champion) ? `<b class="p${cup.users.indexOf(cup.champion) + 1}">PLAYER ${cup.users.indexOf(cup.champion) + 1} WON THE WORLD CUP!</b>` : 'BOTH PLAYERS ARE OUT'}</div>`
+    : `<div class="duoturn p${cup.turn + 1}">${vs ? `<b>P1 v P2</b> — HEAD TO HEAD!` : `<b>PLAYER ${cup.turn + 1}'S TURN</b>${cup.turn === 0 && cup.alive[1] ? ' · then P2' : cup.turn === 1 && cup.alive[0] ? ' · P1 already played' : ''}`}</div>`;
+  const top = el('div', 'cuptop duo', `${card(cup.users[0], 0)}<div class="duomid"><div class="ct1">2P WORLD CUP</div><div class="ct2">${cup.stage === 'group' ? 'MATCHDAY ' + (cup.md + 1) + ' OF 3' : cup.stage === 'ko' ? KO_NAMES[cup.koRound] : 'FINISHED'}</div>${turn}</div>${card(cup.users[1], 1)}`);
+  ui.appendChild(top);
+  if (cup.intro) { cup.intro = false; saveCup(); if (cup.replaced.length) ui.appendChild(el('div', 'duonote', cup.replaced.map(([c, w]) => `${badgeImg(c, 22)} <b>${tName(c)}</b> takes the place of ${badgeImg(w, 22)} ${tName(w)}`).join(' &nbsp;·&nbsp; '))); }
+}
 function trophyScreen() {
   screen = 'trophy'; clearUI(); ui.className = 'menu trophy'; sfx('cheer', 1); sfx('vo_champ', 1);
   ui.appendChild(el('img', 'bigtrophy')).src = A + 'ui/trophy.webp';
-  ui.appendChild(el('h2', '', 'WORLD CHAMPIONS!'));
+  ui.appendChild(el('h2', '', cup.duo ? `PLAYER ${cup.users.indexOf(cup.team) + 1} WINS THE WORLD CUP!` : 'WORLD CHAMPIONS!'));
   const cr = el('div', 'champrow', `${badgeImg(cup.team, 120)}<span>${byCode(cup.team).name.toUpperCase()}</span>`); cr.insertBefore(charCanvas(cup.team, 'cele', 200, 260, 1), cr.firstChild); ui.appendChild(cr);
   const row = el('div', 'row'); row.appendChild(btn('CONTINUE', 'gold', cupHub)); ui.appendChild(row);
   for (let i = 0; i < 6; i++) setTimeout(() => sfx('firework', 0.6), i * 500);
@@ -2127,10 +2187,12 @@ function makeGlobe(host, w, h, opts) {
 }
 
 /* ---------------- 1. pick a confederation on the globe ---------------- */
-window.FW_new = () => {
+// duo = { step: 0|1, p1 } when picking nations for the 2-player World Cup
+window.FW_new = (duo) => {
   initAudio && initAudio(); preloadAll();
-  screen = 'fwglobe'; base('fwglobe'); music('menu'); crowd(false);
-  ui.appendChild(el('div', 'fwtitle', `<div class="fwt1">FULL WORLD CUP</div><div class="fwt2">ROAD TO 2026 · 210 NATIONS · 48 PLACES</div>`));
+  screen = 'fwglobe'; base('fwglobe' + (duo ? ' duo p' + (duo.step + 1) : '')); music('menu'); crowd(false);
+  ui.appendChild(el('div', 'fwtitle', duo ? `<div class="fwt1">2P WORLD CUP</div><div class="fwt2">PLAYER ${duo.step + 1} — SPIN THE GLOBE &amp; PICK ANY NATION${duo.p1 ? ` · P1 HAS ${NM(duo.p1)}` : ''}</div>`
+    : `<div class="fwt1">FULL WORLD CUP</div><div class="fwt2">ROAD TO 2026 · 210 NATIONS · 48 PLACES</div>`));
   const wrap = el('div', 'fwgwrap'); ui.appendChild(wrap);
   const left = el('div', 'fwgside l', `<div class="fwhint">SPIN THE GLOBE<br><small>drag to rotate · scroll to zoom</small><br><br>CLICK A CONTINENT<br><small>to pick your nation from its qualifiers</small></div>`); wrap.appendChild(left);
   const host = el('div', 'fwghost'); wrap.appendChild(host);
@@ -2146,38 +2208,39 @@ window.FW_new = () => {
   const G = makeGlobe(host, 560, 560, {
     mode: 'select', rot: [-15, -25],
     onHover: k => { showInfo(k); if (k) sfx('tick', 0.25, 1.6); },
-    onPick: k => { sfx('click', 0.6); G.flyTo(CONF[k].center, 1.9, 650, () => confPick(k)); },
+    onPick: k => { sfx('click', 0.6); G.flyTo(CONF[k].center, 1.9, 650, () => confPick(k, duo)); },
   });
-  const row = el('div', 'row'); row.appendChild(btn('BACK', 'red', showTitle)); ui.appendChild(row);
+  const row = el('div', 'row'); row.appendChild(btn('BACK', 'red', () => duo && duo.step ? FW_new({ step: 0 }) : showTitle())); ui.appendChild(row);
 };
 
 /* ---------------- 2. pick a nation from that confederation ---------------- */
-function confPick(k) {
-  screen = 'fwconf'; base('select fifa fwconf');
-  ui.appendChild(el('h2', '', `${CONF[k].name} · ${CONF[k].full} QUALIFIERS`));
+function confPick(k, duo) {
+  screen = 'fwconf'; base('select fifa fwconf' + (duo ? ' duo p' + (duo.step + 1) : ''));
+  ui.appendChild(el('h2', '', duo ? `PLAYER ${duo.step + 1} · PICK YOUR ${CONF[k].name} NATION` : `${CONF[k].name} · ${CONF[k].full} QUALIFIERS`));
   const wrap = el('div', 'selwrap'); const grid = el('div', 'grid fgrid fwlist'); const prev = el('div', 'preview');
   const teams = WT.filter(t => t.conf === k).sort((a, b) => a.name.localeCompare(b.name));
   const cols = teams.length > 40 ? 5 : teams.length > 20 ? 4 : teams.length > 10 ? 3 : 2;
   grid.style.gridTemplateColumns = `repeat(${cols},1fr)`;
-  let cur = byRating(teams.map(t => t.code))[0];
+  let cur = byRating(teams.map(t => t.code).filter(c => !duo || c !== duo.p1))[0];
   function showPrev(code) {
     cur = code; prep(code); const t = byCode(code), pl = PLAYERS[code];
-    const host = HOSTS.includes(code);
+    const host = !duo && HOSTS.includes(code), in48 = TEAMS.some(t => t.code === code);
     prev.innerHTML = `<div class="pflag">${flagTag(code)}</div><div class="pname">${NM(code)}</div><div class="pgroup">${CONF[k].full}${host ? ' · HOST NATION' : ''}</div>
-      <div class="pchar"></div><div class="pstar">★ ${pl.name}</div><div class="prate">RATING ${R(code)}</div>${host ? '<div class="phost">Already qualified as host! Watch the world fight for places, then play the finals.</div>' : ''}`;
+      <div class="pchar"></div><div class="pstar">★ ${pl.name}</div><div class="prate">RATING ${R(code)}</div>${host ? '<div class="phost">Already qualified as host! Watch the world fight for places, then play the finals.</div>' : ''}${duo ? `<div class="phost">${in48 ? 'Already one of the 48 — keeps its group spot.' : 'Not one of the 48 — takes the place of the weakest team in the draw.'}</div>` : ''}`;
     menuChars = menuChars.filter(m => m.c.isConnected);
     prev.querySelector('.pchar').appendChild(charCanvas(code, 'idle', 220, 230, 1));
     grid.querySelectorAll('.cell').forEach(c => c.classList.toggle('on', c.dataset.code === code));
   }
   for (const t of teams) {
     const n = NM(t.code);
-    const c = el('button', 'cell frow' + (HOSTS.includes(t.code) ? ' host' : ''), `${flagTag(t.code, 'fflag')}<span class="fbar"${n.length > 16 ? ' style="font-size:11px"' : ''}>${n}</span>`);
-    c.dataset.code = t.code; c.onclick = () => { sfx('click', 0.5); showPrev(t.code); }; c.ondblclick = () => go();
+    const taken = duo && t.code === duo.p1;
+    const c = el('button', 'cell frow' + (!duo && HOSTS.includes(t.code) ? ' host' : '') + (taken ? ' taken' : ''), `${flagTag(t.code, 'fflag')}<span class="fbar"${n.length > 16 ? ' style="font-size:11px"' : ''}>${n}</span>`);
+    c.dataset.code = t.code; c.onclick = () => { if (taken) return; sfx('click', 0.5); showPrev(t.code); }; c.ondblclick = () => { if (!taken) go(); };
     grid.appendChild(c);
   }
   wrap.appendChild(grid); wrap.appendChild(prev); ui.appendChild(wrap);
-  const go = () => { newCampaign(cur, settings.difficulty); hub('road'); };
-  const row = el('div', 'row'); row.appendChild(btn('GLOBE', 'red', () => FW_new())); row.appendChild(btn('START CAMPAIGN', 'green', go)); ui.appendChild(row);
+  const go = () => { if (duo) return duo.step ? WC2_new(duo.p1, cur) : FW_new({ step: 1, p1: cur }); newCampaign(cur, settings.difficulty); hub('road'); };
+  const row = el('div', 'row'); row.appendChild(btn('GLOBE', 'red', () => FW_new(duo))); row.appendChild(btn(duo ? (duo.step ? 'START 2P WORLD CUP' : 'NEXT: PLAYER 2') : 'START CAMPAIGN', 'green', go)); ui.appendChild(row);
   setTimeout(() => showPrev(cur), 0);
 }
 

@@ -7,6 +7,7 @@ A 1v1 big-head football game that runs in the browser. No install needed.
 ## Modes
 - **Full World Cup** – pick any of 210 nations on a spinning globe, fight through your continent's real-format qualifiers, then the final draw and the 48-team finals.
 - **World Cup 48** – jump straight into the 48-team tournament.
+- **2P World Cup** – two players each pick any nation and run the same World Cup, taking turns: P1 plays their match, then P2, every matchday. They start in different groups on opposite sides of the bracket, so they can only meet in the final.
 - **Quick Match** and **2 Players** (same keyboard).
 
 ## Controls
